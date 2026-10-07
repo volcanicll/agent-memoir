@@ -89,6 +89,23 @@ identifier-shaped tokens before it is written. `search --json` is the opposite:
 it is **local-only** output for scripting, it may contain session ids, and it is
 never routed through the export path.
 
+## Agent skill
+
+An official agent skill for this project is distributed through
+[cc-skills](https://github.com/volcanicll/cc-skills) — a step-by-step manual
+that lets AI coding agents (Claude Code, Codex CLI, and other Agent Skills
+compatible hosts) drive this CLI for you: detecting local agent stores,
+syncing the unified event stream, querying stats and cross-source search,
+comparing agents, analyzing friction, and generating reports or the portrait
+site.
+
+```sh
+npx skills add volcanicll/cc-skills --skill agent-memoir
+```
+
+The skill is documentation-only; the tool itself lives in this repository and
+is the only thing the skill operates on.
+
 ## Search
 
 `search "<query>"` supports a small closed grammar rather than SQL: free text
