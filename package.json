@@ -1,0 +1,19 @@
+{
+  "name": "agent-memoir",
+  "version": "0.1.0",
+  "description": "Normalize local AI coding agent histories (Hermes / Claude Code / Codex) into one unified Event stream backed by SQLite.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "verify": "bun run scripts/verify-normalize.ts && bun run scripts/verify-adapters.ts",
+    "verify:real": "bun run scripts/verify-normalize.ts",
+    "verify:fixtures": "bun run scripts/verify-adapters.ts",
+    "cli": "bun run src/cli/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^5.6.0"
+  }
+}
