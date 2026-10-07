@@ -7,9 +7,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "verify": "bun run scripts/verify-normalize.ts && bun run scripts/verify-adapters.ts",
+    "verify": "bun run scripts/verify-normalize.ts && bun run scripts/verify-adapters.ts && bun run scripts/verify-portrait.ts",
     "verify:real": "bun run scripts/verify-normalize.ts",
     "verify:fixtures": "bun run scripts/verify-adapters.ts",
+    "verify:portrait": "bun run scripts/verify-portrait.ts",
     "cli": "bun run src/cli/index.ts"
   },
   "devDependencies": {
