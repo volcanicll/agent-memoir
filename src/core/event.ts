@@ -12,7 +12,7 @@
  *   by `ts` (same-millisecond collisions are common).
  */
 
-export type EventSource = 'hermes' | 'claude-code' | 'codex' | (string & {});
+export type EventSource = 'hermes' | 'claude-code' | 'codex' | 'opencode' | 'pi' | 'gemini' | 'grok' | (string & {});
 
 export type EventRole = 'user' | 'assistant' | 'tool' | 'system';
 

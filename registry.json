@@ -33,6 +33,50 @@
         "en": "OpenAI Codex CLI rollout files (nested payload event stream).",
         "zh": "OpenAI Codex CLI 的 rollout 文件（嵌套 payload 事件流）。"
       }
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "builtin": true,
+      "sourceKind": "sqlite",
+      "detect": "~/.local/share/opencode/opencode.db",
+      "summary": {
+        "en": "OpenCode sessions from its local SQLite store (session/message/part tables).",
+        "zh": "OpenCode 本地 SQLite 存储中的会话（session/message/part 三表）。"
+      }
+    },
+    {
+      "id": "pi",
+      "name": "pi",
+      "builtin": true,
+      "sourceKind": "jsonl",
+      "detect": "~/.pi/agent/sessions/**/*.jsonl",
+      "summary": {
+        "en": "pi coding agent session JSONL files (version 3 stream).",
+        "zh": "pi coding agent 的会话 JSONL 文件（version 3 事件流）。"
+      }
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini CLI",
+      "builtin": true,
+      "sourceKind": "jsonl",
+      "detect": "~/.gemini/tmp/**/chats/session-*.jsonl",
+      "summary": {
+        "en": "Gemini CLI chat-recorder session files (metadata line + message records).",
+        "zh": "Gemini CLI chat-recorder 的会话文件（首行元数据 + 消息记录）。"
+      }
+    },
+    {
+      "id": "grok",
+      "name": "Grok CLI",
+      "builtin": true,
+      "sourceKind": "sqlite",
+      "detect": "~/.grok/grok.db",
+      "summary": {
+        "en": "Grok CLI sessions from its local SQLite store (ModelMessage JSON rows).",
+        "zh": "Grok CLI 本地 SQLite 存储中的会话（ModelMessage JSON 行）。"
+      }
     }
   ]
 }

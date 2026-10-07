@@ -1,7 +1,7 @@
 {
   "name": "agent-memoir",
   "version": "0.1.0",
-  "description": "Normalize local AI coding agent histories (Hermes / Claude Code / Codex) into one unified Event stream backed by SQLite.",
+  "description": "Normalize local AI coding agent histories (Hermes / Claude Code / Codex / OpenCode / pi / Gemini CLI / Grok CLI) into one unified Event stream backed by SQLite.",
   "type": "module",
   "private": true,
   "scripts": {

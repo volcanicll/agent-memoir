@@ -50,7 +50,7 @@ const HERMES_SOURCE = 'hermes';
 /** Hermes session sources that exist only because a human opened them. */
 const HUMAN_HERMES_SOURCES = new Set(['telegram', 'cli', 'dingtalk', 'feishu', 'tui', 'acp']);
 /** Sources whose transcripts are human-driven by construction. */
-const ALWAYS_HUMAN_DRIVEN = new Set(['claude-code', 'codex']);
+const ALWAYS_HUMAN_DRIVEN = new Set(['claude-code', 'codex', 'opencode', 'pi', 'gemini', 'grok']);
 
 /**
  * The Hermes session-source label ('cron', 'telegram', …), carried on every

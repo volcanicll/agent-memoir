@@ -14,6 +14,10 @@ import type { EventSource } from './event.ts';
 import { HermesAdapter } from '../adapters/hermes/index.ts';
 import { ClaudeCodeAdapter } from '../adapters/claude-code/index.ts';
 import { CodexAdapter } from '../adapters/codex/index.ts';
+import { OpencodeAdapter } from '../adapters/opencode/index.ts';
+import { PiAdapter } from '../adapters/pi/index.ts';
+import { GeminiAdapter } from '../adapters/gemini/index.ts';
+import { GrokAdapter } from '../adapters/grok/index.ts';
 
 export interface RegistryEntry {
   id: EventSource;
@@ -36,6 +40,10 @@ const BUILTIN_FACTORIES: Readonly<Record<string, () => Adapter>> = {
   hermes: () => new HermesAdapter(),
   'claude-code': () => new ClaudeCodeAdapter(),
   codex: () => new CodexAdapter(),
+  opencode: () => new OpencodeAdapter(),
+  pi: () => new PiAdapter(),
+  gemini: () => new GeminiAdapter(),
+  grok: () => new GrokAdapter(),
 };
 
 export class AdapterRegistry {

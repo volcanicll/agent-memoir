@@ -1,8 +1,9 @@
 # agent-memoir
 
 A portrait of one person's working life, reconstructed from the local histories
-of the AI agents they ran: Hermes, Claude Code, and Codex are normalized into
-one `Event` stream, analyzed into a `Portrait`, and rendered as a static site.
+of the AI agents they ran: Hermes, Claude Code, Codex, OpenCode, pi, Gemini
+CLI, and Grok CLI are normalized into one `Event` stream, analyzed into a
+`Portrait`, and rendered as a static site.
 
 ```
 sync → MemoirStore (SQLite) → analyzeAll() → Portrait → renderPortrait() → static site
@@ -19,6 +20,18 @@ in `registry.json`:
   `subagents/` transcripts; sidechain rows key off `isSidechain`, not filenames.
 - `codex` — `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, one self-describing
   envelope per line; the line's own `ordinal` keys the sequence.
+- `opencode` — `~/.local/share/opencode/opencode.db` (SQLite, opened
+  `?immutable=1` like Hermes/Grok); `message` rows + `part` rows, where a
+  `tool` part fans out into its call and its result.
+- `pi` — `~/.pi/agent/sessions/<project-slug>/*.jsonl`, one row per line
+  (`session` / `model_change` / `message`); user prompts, assistant text,
+  thinking blocks, tool calls, and `toolResult` rows all map.
+- `gemini` — `~/.gemini/tmp/<project>/chats/session-*.jsonl` (first line is
+  the conversation metadata; `$patch` / `$rewindTo` records are dropped, and
+  a `gemini` record fans out into text / thoughts / toolCalls).
+- `grok` — `~/.grok/grok.db` (SQLite, `?immutable=1`); each `message_json`
+  row is an AI SDK `ModelMessage`, fanned out into text / thinking /
+  tool-call / tool-result parts keyed by the stable per-session `seq`.
 
 Every adapter is read-only on its source, streams `RawEvent`s, and returns
 `null` from `normalize()` for telemetry rows rather than inventing content.
