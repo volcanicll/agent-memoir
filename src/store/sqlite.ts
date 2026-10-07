@@ -38,6 +38,17 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, ordinal);
 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
 CREATE INDEX IF NOT EXISTS idx_events_source ON events(source);
+-- Query-shape indexes added in Phase 2 (measured, 122k rows):
+--   search narrows by source or kind and then wants the newest matches, so
+--   the composite (equality column, ts) lets SQLite walk the ts index inside
+--   the equality instead of scanning the whole ts order backwards
+--   (source:codex kind:reasoning measured 46 ms → single digits).
+CREATE INDEX IF NOT EXISTS idx_events_source_ts ON events(source, ts);
+CREATE INDEX IF NOT EXISTS idx_events_kind_ts ON events(kind, ts);
+-- Friction's repeated-failure pass reads exactly these (tool_ok = 0 rows) and
+-- measureTouches reads the write-like tools; both are tiny slivers of the
+-- table and scanning them linearly is wasted work on every call.
+CREATE INDEX IF NOT EXISTS idx_events_tool_ok ON events(tool_ok) WHERE tool_ok = 0;
 `;
 
 export class MemoirStore {

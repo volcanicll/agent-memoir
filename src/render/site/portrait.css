@@ -778,6 +778,200 @@ section.chapter {
   padding: 18px 20px;
 }
 
+/* ---------- chapter 05: friction ---------- */
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule-soft);
+  margin-top: 18px;
+}
+
+.metric {
+  background: var(--bg-raise);
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+
+.metric-value {
+  font-family: var(--display);
+  font-size: 34px;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+}
+
+.rewrite-list {
+  display: grid;
+  gap: 9px;
+}
+
+.rewrite-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  padding-bottom: 8px;
+  border-bottom: 1px dotted var(--rule-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.rewrite-row .path {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rewrite-row .versions {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- chapter 06: cross-source comparison ---------- */
+
+.compare-wrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 14px;
+}
+
+table.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+table.compare th,
+table.compare td {
+  text-align: right;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--rule-soft);
+  white-space: nowrap;
+}
+
+table.compare thead th {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  vertical-align: bottom;
+  border-bottom: 1px solid var(--rule);
+}
+
+table.compare thead th small {
+  display: block;
+  margin-top: 4px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: var(--ink-faint);
+  opacity: 0.75;
+}
+
+table.compare tbody th {
+  text-align: left;
+  color: var(--ink);
+  font-weight: 400;
+  font-size: 13px;
+}
+
+table.compare tbody th small {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+table.compare td small {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
+table.compare td.tools {
+  text-align: right;
+  white-space: normal;
+  min-width: 130px;
+  color: var(--ink-dim);
+}
+
+table.compare td.tools small.unlocated {
+  margin-top: 3px;
+  color: var(--ink-faint);
+  opacity: 0.85;
+}
+
+.contrasts {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contrasts li {
+  border-left: 2px solid var(--accent-dim);
+  padding: 2px 0 2px 18px;
+}
+
+.contrasts li[data-key='tool_failure_rate'] {
+  border-left-color: var(--negative);
+}
+
+.contrasts p {
+  margin: 0 0 8px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ink);
+  max-width: 78ch;
+}
+
+.contrast-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 30px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.contrast-numbers b {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.contrast-numbers em {
+  font-style: normal;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- footer ---------- */
 
 footer {
@@ -816,6 +1010,12 @@ section.view[hidden] {
   }
   .chapter-note {
     display: none;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .term-columns {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

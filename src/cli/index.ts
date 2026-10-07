@@ -4,25 +4,37 @@
  *   sync      read every detected adapter into the local store (idempotent)
  *   stats     print an analysis summary for one session class
  *   portrait  write the static portrait site
+ *   search    query the unified stream (local output)
+ *   compare   the cross-source table and its computed contrasts
+ *   friction  repeated failures, long loops, rewrites, abandoned sessions
+ *   report    write a shareable markdown report (aggregates only)
  *   export    print a single Insight JSON document (the ONLY export path)
  *   init      show detected sources and where they live
  *
  * Zero runtime dependencies: argument parsing is a hand-written loop because
- * the surface is five commands and a handful of flags, and because adding a
- * parser would break the repo's dependency-free promise.
+ * the surface is a handful of commands and flags, and because adding a parser
+ * would break the repo's dependency-free promise.
  *
  * Privacy: everything that leaves the terminal is an Insight and goes through
  * assertExportable(); nothing that leaves carries paths, session ids or text.
+ * The ONE exception is `search --json`, which is local-only scripting output
+ * and says so in its help text; it is never routed through the export path.
  */
 
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { analyzeAll, loadSessions, type Portrait } from '../analyze/index.ts';
 import { CLASS_FILTERS, type ClassFilter } from '../analyze/classify.ts';
+import { computeCompare, contrasts } from '../analyze/compare.ts';
+import { computeFriction } from '../analyze/friction.ts';
+import { buildReport } from '../analyze/report.ts';
+import { assertNoIdentifiers, redactHome } from '../analyze/redact.ts';
 import { assertExportable, type Insight } from '../core/privacy.ts';
 import { defaultRegistry } from '../core/registry.ts';
 import { renderPortrait } from '../render/portrait.ts';
+import { describeQuery, parseQuery, QueryError } from '../search/query.ts';
+import { search } from '../search/index.ts';
 import { MemoirStore } from '../store/sqlite.ts';
 
 const DEFAULT_DB = join(homedir(), '.agent-memoir', 'events.db');
@@ -256,6 +268,298 @@ async function cmdPortrait(args: ParsedArgs): Promise<number> {
   }
 }
 
+// ------------------------------------------------------------------ search
+
+/**
+ * Query the unified stream.
+ *
+ * The parsed filters are printed BEFORE the results on purpose: a mistyped
+ * `sorce:hermes` would otherwise be reported (by the parser) yet still leave
+ * the user staring at results they believe are filtered. `--json` is
+ * local-only output for the user's own scripting and MAY contain session ids;
+ * it is never routed through assertExportable(), and the help text says so.
+ */
+function cmdSearch(args: ParsedArgs): number {
+  const dbPath = dbPathOf(args);
+  if (!existsSync(dbPath)) {
+    console.error(`no store at ${dbPath} — run \`bun run cli -- sync\` first`);
+    return 1;
+  }
+  const raw = args.rest.join(' ').trim();
+  if (raw.length === 0) {
+    console.error('search needs a query, e.g. `search "apply_patch"` or `search class:interactive tool:exec_command`');
+    return 1;
+  }
+  const limitRaw = args.flags.get('limit');
+  const limit = limitRaw === undefined ? 20 : Number(limitRaw);
+  if (!Number.isInteger(limit) || limit <= 0) {
+    console.error(`--limit must be a positive integer (got "${limitRaw}")`);
+    return 1;
+  }
+  let parsed;
+  try {
+    parsed = parseQuery(raw);
+  } catch (err) {
+    if (err instanceof QueryError) {
+      console.error(`query error at character ${err.position}: ${err.message}`);
+      return 1;
+    }
+    throw err;
+  }
+  const asJson = args.flags.get('json') === 'true';
+  // The class flag NARROWS the query; on its own it defaults to 'all' so a
+  // search never silently hides a stored memory behind the portrait's default.
+  const classFilter: ClassFilter = args.flags.has('class') ? classOf(args) : 'all';
+
+  const store = new MemoirStore(dbPath);
+  try {
+    const result = search(store, parsed, { limit, classFilter, skipIndexCheck: false });
+    if (asJson) {
+      // Local-only shape. Contents may include session ids and text.
+      console.log(
+        JSON.stringify(
+          {
+            query: result.query.raw,
+            parsed: {
+              terms: result.query.terms,
+              phrases: result.query.phrases,
+              sources: result.query.sources,
+              classes: result.query.classes,
+              projects: result.query.projects,
+              tools: result.query.tools,
+              kinds: result.query.kinds,
+              after: result.query.after,
+              before: result.query.before,
+              dropped_terms: result.query.droppedTerms,
+            },
+            class_filter: classFilter,
+            hits: result.hits.map((hit) => ({
+              event_id: hit.event.id,
+              session_id: hit.event.sessionId,
+              source: hit.event.source,
+              class: hit.session.cls,
+              ts: hit.event.ts,
+              kind: hit.event.kind,
+              role: hit.event.role,
+              tool: hit.event.tool?.name ?? null,
+              score: hit.score,
+              snippet_field: hit.snippetField,
+              snippet: hit.snippet,
+            })),
+            examined: result.examined,
+            truncated: result.truncated,
+            elapsed_ms: Number(result.elapsedMs.toFixed(2)),
+          },
+          null,
+          2,
+        ),
+      );
+      return 0;
+    }
+
+    console.log(`agent-memoir · search`);
+    console.log(`understood: ${describeQuery(result.query, classFilter)}`);
+    if (result.hits.length === 0) {
+      console.log('\nno matches.');
+      if (result.query.droppedTerms.length > 0) {
+        console.log(`note: ${result.query.droppedTerms.join(', ')} were dropped by the tokenizer — quoting a phrase may find them.`);
+      }
+      return 0;
+    }
+    console.log(`${result.hits.length} result${result.hits.length === 1 ? '' : 's'} · examined ${int(result.examined)} · ${result.elapsedMs.toFixed(0)}ms${result.truncated ? ' · TRUNCATED at the candidate cap' : ''}\n`);
+    for (const hit of result.hits) {
+      const when = new Date(hit.event.ts).toISOString().replace('T', ' ').slice(0, 16);
+      const score = hit.score === null ? '' : ` · score ${hit.score.toFixed(2)}`;
+      console.log(`${when} · ${hit.event.source} · ${hit.session.cls} · ${hit.event.kind}${hit.event.tool === undefined ? '' : ` · ${hit.event.tool.name}`}${score}`);
+      console.log(`  ${hit.snippet}${hit.snippet.endsWith('…') || hit.snippetMatched ? '' : ' (head of event)'}`);
+      console.log(`  ${redactHome(hit.event.id)}`);
+      console.log('');
+    }
+    if (result.query.droppedTerms.length > 0) {
+      console.log(`note: dropped by the tokenizer: ${result.query.droppedTerms.join(', ')}`);
+    }
+    return 0;
+  } finally {
+    store.close();
+  }
+}
+
+// ----------------------------------------------------------------- compare
+
+function cmdCompare(args: ParsedArgs): number {
+  const dbPath = dbPathOf(args);
+  if (!existsSync(dbPath)) {
+    console.error(`no store at ${dbPath} — run \`bun run cli -- sync\` first`);
+    return 1;
+  }
+  const asJson = args.flags.get('json') === 'true';
+  const cls = classOf(args);
+  const store = new MemoirStore(dbPath);
+  try {
+    const sessions = loadSessions(store);
+    const comparison = computeCompare(sessions, cls);
+    const found = contrasts(comparison);
+    if (asJson) {
+      console.log(
+        JSON.stringify(
+          {
+            scope: cls,
+            table: comparison.sources.map((row) => ({
+              source: row.source,
+              sessions: row.sessions,
+              events: row.events,
+              median_session_minutes: row.medianSessionMinutes,
+              events_per_session: row.eventsPerSession,
+              tool_mix: row.toolMix.map((tool) => ({ name: tool.name, count: tool.count, share: Number(tool.share.toFixed(4)) })),
+              tool_calls: row.toolCalls,
+              peak_hour: row.hourHistogram.indexOf(Math.max(...row.hourHistogram)),
+              hour_histogram: row.hourHistogram,
+              top_projects: row.topProjects.map((project) => ({ label: project.label, sessions: project.sessions, events: project.events })),
+              reasoning_share: Number(row.reasoningShare.toFixed(4)),
+              failure_rate: row.failureRate === null ? null : Number(row.failureRate.toFixed(4)),
+              failure_count: row.failureCount,
+              resolved_count: row.resolvedCount,
+              class_mix: row.classMix,
+            })),
+            contrasts: found.map((contrast) => ({
+              key: contrast.key,
+              statement: contrast.statement,
+              a: { source: contrast.sourceA, value: Number(contrast.valueA.toFixed(4)), label: contrast.labelA },
+              b: { source: contrast.sourceB, value: Number(contrast.valueB.toFixed(4)), label: contrast.labelB },
+              unit: contrast.unit,
+            })),
+          },
+          null,
+          2,
+        ),
+      );
+      return 0;
+    }
+    console.log(`agent-memoir · compare (${cls})`);
+    const headers = ['source', 'sessions', 'events', 'median', 'ev/ses', 'reasoning', 'fail(resolved)', 'top tools'];
+    const rows = comparison.sources.map((row) => [
+      row.source,
+      int(row.sessions),
+      int(row.events),
+      row.medianSessionMinutes === null ? '—' : `${row.medianSessionMinutes.toFixed(1)}m`,
+      row.eventsPerSession === null ? '—' : row.eventsPerSession.toFixed(1),
+      `${(row.reasoningShare * 100).toFixed(1)}%`,
+      row.failureRate === null ? '—' : `${(row.failureRate * 100).toFixed(2)}% (${int(row.failureCount)}/${int(row.resolvedCount)})`,
+      row.toolMix.slice(0, 3).map((tool) => `${tool.name} ${(tool.share * 100).toFixed(0)}%`).join(' · '),
+    ]);
+    const widths = headers.map((header, i) => Math.max(header.length, ...rows.map((row) => (row[i] ?? '').length)));
+    const line = (cells: readonly string[]): string => cells.map((cell, i) => cell.padEnd(widths[i] ?? 0)).join('  ').trimEnd();
+    console.log('');
+    console.log(line(headers));
+    console.log(widths.map((width) => '─'.repeat(width)).join('  '));
+    for (const row of rows) console.log(line(row));
+    console.log(`\ncontrasts (${found.length}):`);
+    for (const contrast of found) console.log(`  · ${contrast.statement}`);
+    if (found.length === 0) console.log('  (no contrast cleared its threshold)');
+    return 0;
+  } finally {
+    store.close();
+  }
+}
+
+// ---------------------------------------------------------------- friction
+
+function cmdFriction(args: ParsedArgs): number {
+  const dbPath = dbPathOf(args);
+  if (!existsSync(dbPath)) {
+    console.error(`no store at ${dbPath} — run \`bun run cli -- sync\` first`);
+    return 1;
+  }
+  const asJson = args.flags.get('json') === 'true';
+  const cls = classOf(args);
+  const store = new MemoirStore(dbPath);
+  try {
+    const friction = computeFriction(loadSessions(store), cls);
+    if (asJson) {
+      // Local-only: findings carry signatures, args and session keys.
+      console.log(JSON.stringify(friction, null, 2));
+      return 0;
+    }
+    const totals = friction.totals;
+    console.log(`agent-memoir · friction (${cls})`);
+    heading('counts');
+    console.log(
+      `recurring failure patterns ${int(totals.repeatedFailureSignatures)} (${int(totals.repeatedFailureOccurrences)} failures) · ` +
+        `long loops ${int(totals.longLoopSessions)} sessions (longest ${int(totals.longLoopMaxPairs)} pairs) · ` +
+        `rewrites ${int(totals.rewrites)} files in ${int(totals.rewriteSessions)} sessions · abandoned ${int(totals.abandonedSessions)}`,
+    );
+    heading('repeated failures (same tool + same arguments, >= 3 times)');
+    if (friction.repeatedFailures.length === 0) console.log('none');
+    for (const finding of friction.repeatedFailures.slice(0, 12)) {
+      console.log(`${int(finding.count)}× in ${finding.sessionCount} session${finding.sessionCount === 1 ? '' : 's'} · ${finding.label}`);
+      console.log(`   ${String(finding.detail.args).slice(0, 160)}`);
+    }
+    heading('longest tool loops (>= 50 tool-call pairs, no human turn between)');
+    for (const finding of friction.longLoops.slice(0, 8)) {
+      console.log(`${int(finding.count)} pairs · ${finding.detail.topTool} · began ${new Date(finding.firstTs).toISOString().slice(0, 16)}`);
+    }
+    heading('files written more than once in one session');
+    for (const finding of friction.revertedWork.slice(0, 10)) {
+      const writes = Number(finding.detail.writes ?? 0);
+      const versions = Number(finding.detail.versions ?? 0);
+      console.log(`${finding.label} · ${int(writes)} writes · ${int(versions)} versions${finding.detail.exactRevert === true ? ' · exact revert' : ''}`);
+    }
+    heading('abandoned sessions');
+    if (friction.abandonedSessions.length === 0) console.log('none');
+    for (const finding of friction.abandonedSessions.slice(0, 8)) {
+      console.log(`${finding.label} · ${new Date(finding.lastTs).toISOString().slice(0, 16)}`);
+    }
+    return 0;
+  } finally {
+    store.close();
+  }
+}
+
+// ------------------------------------------------------------------ report
+
+/**
+ * The shareable markdown report. Built only from Insights (each passing
+ * assertExportable), rendered to markdown, and checked for home paths and
+ * identifier-shaped tokens before a byte is written. See analyze/report.ts for
+ * why this cannot leak — the code path does not exist.
+ */
+function cmdReport(args: ParsedArgs): number {
+  const dbPath = dbPathOf(args);
+  const out = args.flags.get('out');
+  if (out === undefined || out === 'true') {
+    console.error('report needs --out <file.md>');
+    return 1;
+  }
+  if (!existsSync(dbPath)) {
+    console.error(`no store at ${dbPath} — run \`bun run cli -- sync\` first`);
+    return 1;
+  }
+  const cls = classOf(args);
+  const store = new MemoirStore(dbPath);
+  try {
+    const sessions = loadSessions(store);
+    const portrait: Portrait = analyzeAll(store);
+    const { markdown, insights } = buildReport(
+      portrait,
+      computeCompare(sessions, cls),
+      computeFriction(sessions, cls),
+    );
+    const target = resolve(out);
+    mkdirSync(dirname(target), { recursive: true });
+    // Belt and braces: buildReport already ran assertNoIdentifiers, and the
+    // file is re-checked here before the write so the guarantee is attached
+    // to the act of writing, not only to the act of rendering.
+    assertNoIdentifiers(markdown, 'cmdReport');
+    writeFileSync(target, markdown, 'utf8');
+    console.log(`report written to ${target}`);
+    console.log(`  ${int(markdown.length)} bytes · ${insights.length} insights · scope ${cls}`);
+    console.log(`  contents: counts, ratios and tool identifiers only — no paths, no session ids, no conversation text`);
+    return 0;
+  } finally {
+    store.close();
+  }
+}
+
 // ------------------------------------------------------------------ export
 
 /**
@@ -349,6 +653,19 @@ usage: bun run cli -- <command> [options]
                              analysis summary to stdout
   portrait --out <dir> [--db <path>]
                              write the static portrait site
+  search "<query>" [--class ...] [--limit N] [--json]
+                             query the unified stream. Filters: source: class:
+                             project: tool: kind: after: before: "phrase".
+                             --json carries event/session ids and is LOCAL-ONLY
+                             output for your own scripting — never export it.
+  compare [--class ...] [--json]
+                             per-source table and computed contrasts
+  friction [--class ...] [--json]
+                             repeated failures, long loops, rewrites, dead ends.
+                             --json carries local evidence (args, session keys).
+  report --out <file.md> [--class ...]
+                             shareable markdown: aggregates only, no paths and
+                             no session ids (the one report safe to send)
   export [--db <path>]       print one Insight JSON document (aggregates only)
 
 default db: ${DEFAULT_DB}`;
@@ -364,6 +681,14 @@ async function main(): Promise<number> {
       return cmdStats(args);
     case 'portrait':
       return cmdPortrait(args);
+    case 'search':
+      return cmdSearch(args);
+    case 'compare':
+      return cmdCompare(args);
+    case 'friction':
+      return cmdFriction(args);
+    case 'report':
+      return cmdReport(args);
     case 'export':
       return cmdExport(args);
     case undefined:

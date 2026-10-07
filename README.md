@@ -30,13 +30,49 @@ bun run cli -- init                             # detected sources and their pat
 bun run cli -- sync                             # ingest everything (idempotent)
 bun run cli -- stats --class interactive        # analysis summary to stdout
 bun run cli -- portrait --out ./portrait        # write the static site
+bun run cli -- search "apply_patch" --limit 5   # query the unified stream
+bun run cli -- compare                          # per-source table + contrasts
+bun run cli -- friction --class interactive     # what keeps going wrong
+bun run cli -- report --out ./report.md         # shareable markdown (aggregates only)
 bun run cli -- export                           # one Insight JSON, aggregates only
 ```
 
-`sync`, `stats`, `portrait`, and `export` share `--db <path>`, defaulting to
-`~/.agent-memoir/events.db`. `export` is the only command that emits anything
-that may leave the machine; its payload passes `assertExportable()` and
-contains no paths, no session ids, and no conversation text.
+`sync`, `stats`, `portrait`, `search` and `report` share `--db <path>`,
+defaulting to `~/.agent-memoir/events.db`.
+
+`export` and `report` are the two commands that emit anything that may leave
+the machine. Both pass `assertExportable()`; `report` is additionally assembled
+only from Insight-shaped aggregates and is checked for home paths and
+identifier-shaped tokens before it is written. `search --json` is the opposite:
+it is **local-only** output for scripting, it may contain session ids, and it is
+never routed through the export path.
+
+## Search
+
+`search "<query>"` supports a small closed grammar rather than SQL: free text
+(tokenized with the CJK-aware tokenizer), `"quoted phrases"` as exact
+substrings, and the filters `source:`, `class:`, `project:`, `tool:`, `kind:`,
+`after:YYYY-MM-DD` and `before:YYYY-MM-DD`. An unknown `key:value` is a
+**reported error**, never a silently ignored term.
+
+Free text is served by an FTS5 index (available in `bun:sqlite`) stored in the
+memoir's own database — contentless, so it costs ~41 MB rather than ~153 MB for
+a duplicate of the body, with a rid→event_id map bridging back to `events`. The
+index is built on first search (≈3.5 s for 122k events) and updated
+incrementally after `sync`. Measured p50 on this machine's 122k-event store:
+2–15 ms per query.
+
+## Friction
+
+`friction` reports four families, each with its evidence: repeated failures
+(the same tool + normalized arguments returning `ok:false` at least three
+times, recovered by pairing each result to its call), long tool loops (≥50
+tool-call pairs with no human turn between), reverted work (one path written
+more than once in a session with different content — a heuristic over
+summarized args, not a git diff), and abandoned sessions. The findings carry
+command lines and paths for local display; the rendered portrait shows counts,
+tool names and redacted path labels only, and the shareable report shows counts
+and categories only.
 
 ## Session classes
 
@@ -63,15 +99,29 @@ survives into `index.html`, `portrait.css`, or `portrait.js` before writing.
 
 ```sh
 bun run typecheck        # tsc --noEmit
-bun test                 # unit tests: tokenizer, classifier, streak/gap, drift
-bun run verify           # Phase 0 gates + the Phase 1 portrait gate
-bun run verify:portrait  # just the portrait gate
+bun test                 # unit tests: tokenizer, classifier, streak/gap, drift,
+                         # query parser, redaction, friction, search, report
+bun run verify           # all four gates, in order
+bun run verify:real      # just Phase 0 (this machine's sources)
+bun run verify:fixtures  # just the adapter fixtures
+bun run verify:portrait  # just the Phase 1 portrait gate
+bun run verify:phase2    # just the Phase 2 gate
 ```
 
-`verify:real` streams this machine's sources; `verify:fixtures` and
-`verify:portrait` run against checked-in synthetic fixtures, so they are
-reproducible anywhere. The portrait gate builds a store from a fixed 490-event
-fixture, asserts hand-computed analysis numbers, renders the site to a temp
-directory, then drives headless Chrome to prove the page is neither blank (PNG
-size against a blank-page reference) nor empty in the DOM (section markers and
-real numbers in `--dump-dom`).
+`verify:real` streams this machine's sources; the other three run against
+checked-in synthetic fixtures, so they are reproducible anywhere.
+
+The portrait gate builds a store from a fixed 490-event fixture, asserts
+hand-computed analysis numbers, renders the site to a temp directory, then
+drives headless Chrome to prove the page is neither blank (PNG size against a
+blank-page reference) nor empty in the DOM (section markers and real numbers in
+`--dump-dom`).
+
+The phase 2 gate builds a second fixture that deliberately plants a repeated
+failure (through the call→result pairing the adapters require), a long tool
+loop, a rewrite with an exact revert and an abandoned session — and asserts
+that a clean session produces no finding at all. It also rejects a mistyped
+query filter, checks that every emitted contrast carries both source numbers,
+parses the shareable report and checks it for paths, session ids, uuids and
+conversation text, and measures search latency against a copy of the real store
+against a stated budget.

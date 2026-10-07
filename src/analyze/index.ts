@@ -19,7 +19,9 @@
 import type { Event } from '../core/event.ts';
 import type { MemoirStore } from '../store/sqlite.ts';
 import { CLASS_FILTERS, type ClassFilter, type SessionClass } from './classify.ts';
+import { computeCompare, type Comparison } from './compare.ts';
 import { computeDrift, type Drift } from './drift.ts';
+import { computeFriction, displayFriction, type DisplayFriction } from './friction.ts';
 import { computeProjects, type Projects } from './projects.ts';
 import { computeRhythm, type Rhythm, type TimeSpan } from './rhythm.ts';
 import { buildSessions, filterSessions, tallyByClass, type Session } from './session.ts';
@@ -34,6 +36,14 @@ export interface ClassView {
   readonly vocabulary: Vocabulary;
   readonly projects: Projects;
   readonly drift: Drift | null;
+  /**
+   * Friction for this class, as a DISPLAY projection: counts, tool names and
+   * redacted path labels only. The full findings (commands, session keys, raw
+   * paths) stay in the caller's own `computeFriction()` result — the Portrait
+   * is inlined into a file on disk, so it may only carry display data. See
+   * displayFriction() in friction.ts.
+   */
+  readonly friction: DisplayFriction;
 }
 
 export interface ClassTally {
@@ -72,6 +82,13 @@ export interface Portrait {
   };
   readonly sources: readonly SourceTally[];
   readonly labels: readonly LabelTally[];
+  /**
+   * The cross-source table and its contrasts. Unfiltered by class: comparing
+   * three agents is the subject, and hiding a source behind the class default
+   * would make "three styles" a two-source claim. The per-source class mix is
+   * carried on each row so the reader can see what is being compared.
+   */
+  readonly comparison: Comparison;
   /** One view per class filter; `interactive` is the honest default. */
   readonly views: Readonly<Record<ClassFilter, ClassView>>;
 }
@@ -172,6 +189,7 @@ export function analyzeAll(store: MemoirStore, options: AnalyzeOptions = {}): Po
       vocabulary: computeVocabulary(sessions, filter, Math.max(topTerms, topTools)),
       projects: computeProjects(sessions, filter),
       drift: computeDrift(sessions, filter, { termDepth: 200, termLimit: 12 }),
+      friction: displayFriction(computeFriction(sessions, filter)),
     };
   }
 
@@ -199,6 +217,7 @@ export function analyzeAll(store: MemoirStore, options: AnalyzeOptions = {}): Po
     },
     sources: [...sourceMap.values()].sort((a, b) => b.events - a.events),
     labels: [...labelMap.values()].sort((a, b) => b.events - a.events),
+    comparison: computeCompare(sessions, 'all'),
     views,
   };
 }

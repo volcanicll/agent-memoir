@@ -25,6 +25,7 @@ import type { ClassFilter } from '../analyze/classify.ts';
 import type { ClassView, Portrait } from '../analyze/index.ts';
 import type { TermMove, ShareMove } from '../analyze/drift.ts';
 import { TERM_RANK_DELTA } from '../analyze/drift.ts';
+import { contrasts, type SourceComparison } from '../analyze/compare.ts';
 import { UNLOCATED_PROJECT } from '../analyze/projects.ts';
 import { assertRedacted } from '../analyze/redact.ts';
 import { WEEKDAY_LABELS } from '../analyze/rhythm.ts';
@@ -220,6 +221,179 @@ function heroSvg(view: ClassView, ghost: ClassView, scale: FieldScale, label: st
 }
 
 // ------------------------------------------------------------------ sections
+
+/**
+ * Chapters 05 and 06: friction and the cross-source comparison.
+ *
+ * Both are rendered PER VIEW like every other chapter, so the class toggle
+ * genuinely re-renders them. Two deliberate choices about what reaches the
+ * page:
+ *
+ *   - Friction shows counts, tool names and redacted path labels only. The
+ *     findings' `signature`/`detail.args`/`sessions` fields stay in the
+ *     Portrait (they are needed by the local CLI) and are never read here —
+ *     that is the phase's privacy rule made structural, not editorial.
+ *   - The comparison chapter draws the AUTOMATION-scoped table as well. The
+ *     three-agent question spans the whole corpus (a scheduler is part of how
+ *     a machine is used), so each row carries its own class mix and the
+ *     reader is told plainly when a row is mostly cron.
+ */
+
+// ----------------------------------------------------------- chapter 05: friction
+
+/** A labelled count, the only shape friction is allowed to take on the page. */
+function metricRow(label: string, value: string, note = ''): string {
+  return `<div class="metric"><span class="metric-label">${escapeHtml(label)}</span><span class="metric-value">${value}</span><span class="metric-note">${escapeHtml(note)}</span></div>`;
+}
+
+function buildFriction(view: ClassView): string {
+  const friction = view.friction;
+  const totals = friction.totals;
+  const empty =
+    totals.repeatedFailureSignatures === 0 &&
+    totals.longLoopSessions === 0 &&
+    totals.rewrites === 0 &&
+    totals.abandonedSessions === 0;
+  const head = chapterHead(
+    '05',
+    'What I keep hitting',
+    'repeated failures, grinding loops, rewritten files, dead ends',
+    `${escapeHtml(friction.cls)} scope`,
+  );
+  if (empty) {
+    return `<section class="chapter" data-section="friction" data-view="${view.cls}">${head}<p class="empty-note">nothing above threshold in this class</p></section>`;
+  }
+
+  const metrics = `<div class="metrics">
+    ${metricRow('recurring failure patterns', int(totals.repeatedFailureSignatures), `${int(totals.repeatedFailureOccurrences)} failures`)}
+    ${metricRow('sessions with a long loop', int(totals.longLoopSessions), `longest ${int(totals.longLoopMaxPairs)} tool pairs`)}
+    ${metricRow('files rewritten in one session', int(totals.rewrites), `${int(totals.rewriteSessions)} sessions`)}
+    ${metricRow('abandoned sessions', int(totals.abandonedSessions), 'ended mid-call or on failure')}
+  </div>`;
+
+  // Repeated failure patterns: tool names and counts only. The args that make
+  // a signature are local-only and deliberately absent from the page.
+  const patterns = friction.repeatedFailures.slice(0, 8);
+  const patternMax = Math.max(...patterns.map((finding) => finding.count), 1);
+  const patternBlock =
+    patterns.length === 0
+      ? '<p class="empty-note">no failure signature repeated three times</p>'
+      : `<div class="bars">${patterns
+          .map(
+            (finding) =>
+              `<div class="bar-row"><span class="label">${escapeHtml(finding.label)}</span><span class="bar-track"><span class="bar-fill machine" style="width:${((finding.count / patternMax) * 100).toFixed(1)}%"></span></span><span class="value">${int(finding.count)}×</span></div>`,
+          )
+          .join('')}</div>`;
+
+  // Rewrites: redacted path labels, already display-ready from friction.ts.
+  const rewrites = friction.revertedWork.slice(0, 6);
+  const rewriteBlock =
+    rewrites.length === 0
+      ? '<p class="empty-note">nothing written twice with different content</p>'
+      : `<div class="rewrite-list">${rewrites
+          .map((finding) => {
+            const writes = Number(finding.detail.writes ?? 0);
+            const versions = Number(finding.detail.versions ?? 0);
+            return `<div class="rewrite-row"><span class="path" title="${escapeHtml(finding.label)}">${escapeHtml(shortPath(finding.label))}</span><span class="versions">${int(writes)} writes · ${int(versions)} versions${finding.detail.exactRevert === true ? ' · reverted to an earlier content' : ''}</span></div>`;
+          })
+          .join('')}</div>`;
+
+  return `<section class="chapter" data-section="friction" data-view="${view.cls}">
+    ${head}
+    <div class="figure-note">counts and identifiers only — the arguments that define a failure pattern never leave the local store</div>
+    ${metrics}
+    <div class="term-columns" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:30px;">
+      <div><h3>Failure patterns that kept repeating</h3>${patternBlock}</div>
+      <div><h3>Files written more than once</h3>${rewriteBlock}</div>
+    </div>
+  </section>`;
+}
+
+// --------------------------------------------------- chapter 06: three agents
+
+function shareCell(share: number | null): string {
+  return share === null ? '—' : `${(share * 100).toFixed(1)}%`;
+}
+
+/** The pre-rendered comparison table for one scope; no runtime drawing. */
+function compareTable(rows: readonly SourceComparison[], title: string): string {
+  if (rows.length === 0) return `<p class="empty-note">no sources in ${escapeHtml(title)}</p>`;
+  const body = rows
+    .map((row) => {
+      const mix = `i ${int(row.classMix.interactive)} · a ${int(row.classMix.automation)}${row.classMix.other > 0 ? ` · o ${int(row.classMix.other)}` : ''}`;
+      const tools = row.toolMix
+        .slice(0, 2)
+        .map((tool) => `${escapeHtml(tool.name)} ${(tool.share * 100).toFixed(0)}%`)
+        .join(' · ');
+      const projects =
+        row.topProjects
+          .filter((project) => project.label !== UNLOCATED_PROJECT)
+          .slice(0, 2)
+          .map((project) => escapeHtml(shortPath(project.label)))
+          .join(', ') || '—';
+      // Unlocated sessions are a fact about the source (all of Hermes' 2,887
+      // interactive sessions have no cwd), so the count is shown here rather
+      // than letting an empty-looking projects column imply they do not exist.
+      const unlocated =
+        row.unlocatedSessions > 0
+          ? `<small class="unlocated">${int(row.unlocatedSessions)} with no cwd</small>`
+          : '';
+      return `<tr>
+        <th scope="row">${escapeHtml(row.source)}<small>${mix}</small></th>
+        <td>${int(row.sessions)}</td>
+        <td>${int(row.events)}</td>
+        <td>${row.medianSessionMinutes === null ? '—' : `${row.medianSessionMinutes.toFixed(1)}m`}</td>
+        <td>${row.eventsPerSession === null ? '—' : row.eventsPerSession.toFixed(1)}</td>
+        <td>${shareCell(row.reasoningShare)}</td>
+        <td>${row.failureRate === null ? '—' : `${shareCell(row.failureRate)}<small>${int(row.failureCount)}/${int(row.resolvedCount)}</small>`}</td>
+        <td class="tools">${tools}</td>
+        <td class="tools">${projects}${unlocated}</td>
+      </tr>`;
+    })
+    .join('');
+  return `<div class="compare-wrap" data-compare="${escapeHtml(title)}">
+    <table class="compare">
+      <thead><tr>
+        <th scope="col">source <small>class mix i/a</small></th>
+        <th scope="col">sessions</th><th scope="col">events</th><th scope="col">median</th>
+        <th scope="col">ev / session</th><th scope="col">reasoning</th>
+        <th scope="col">failures <small>of resolved</small></th>
+        <th scope="col">top tools</th><th scope="col">projects</th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>`;
+}
+
+function buildCompare(portrait: Portrait, view: ClassView): string {
+  const found = contrasts(portrait.comparison);
+  const contrastBlock =
+    found.length === 0
+      ? '<p class="empty-note">no contrast cleared its threshold</p>'
+      : `<ul class="contrasts">${found
+          .map((contrast) => {
+            const format = (value: number): string => {
+              if (contrast.unit === 'share') return `${(value * 100).toFixed(1)}%`;
+              if (contrast.unit === 'hour') return `${String(Math.round(value)).padStart(2, '0')}:00`;
+              if (contrast.unit === 'minutes') return `${value.toFixed(0)}m`;
+              return value.toFixed(1);
+            };
+            return `<li data-key="${escapeHtml(contrast.key)}">
+              <p>${escapeHtml(contrast.statement)}</p>
+              <div class="contrast-numbers">
+                <span><b>${escapeHtml(contrast.sourceA)}</b> ${escapeHtml(contrast.labelA)} <em>${format(contrast.valueA)}</em></span>
+                <span><b>${escapeHtml(contrast.sourceB)}</b> ${escapeHtml(contrast.labelB)} <em>${format(contrast.valueB)}</em></span>
+              </div>
+            </li>`;
+          })
+          .join('')}</ul>`;
+  return `<section class="chapter" data-section="compare" data-view="${view.cls}">
+    ${chapterHead('06', 'Three agents, three styles', 'the same measures, computed identically per source', `${int(portrait.comparison.sources.length)} sources · all classes`)}
+    <div class="figure-note">each row covers that source's whole history; the class mix (i = human-driven, a = automation) is shown beside the name so a row that is mostly scheduler is visible as such</div>
+    ${compareTable(portrait.comparison.sources, 'all')}
+    <div style="margin-top:34px;">${contrastBlock}</div>
+  </section>`;
+}
 
 function captions(entries: ReadonlyArray<readonly [string, string]>): string {
   return `<div class="captions">${entries
@@ -560,6 +734,8 @@ function buildView(portrait: Portrait, cls: ClassFilter, scale: FieldScale, hidd
       <div class="figure-note">line = first to last event seen in that project · unlocated sessions are kept as their own group, never dropped</div>
     </section>
     ${buildDrift(view)}
+    ${buildFriction(view)}
+    ${buildCompare(portrait, view)}
   </section>`;
 }
 
