@@ -43,7 +43,7 @@
  */
 
 import { matchesClassFilter, type ClassFilter } from './classify.ts';
-import { redactHome } from './redact.ts';
+import { anonymizePath, redactHome } from './redact.ts';
 import type { Session } from './session.ts';
 
 export type FrictionCategory = 'repeated_failure' | 'long_loop' | 'reverted_work' | 'abandoned_session';
@@ -331,7 +331,7 @@ function revertedWorkOf(sessions: readonly Session[], maxSessions: number, limit
       findings.push({
         category: 'reverted_work',
         signature: path,
-        label: redactHome(path),
+        label: anonymizePath(redactHome(path)),
         count: entry.contents.length,
         sessionCount: 1,
         sessions: [session.key].slice(0, maxSessions),

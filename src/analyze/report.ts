@@ -264,7 +264,7 @@ export function renderReport(insights: readonly Insight[], title = 'Agent Memoir
   }
 
   if (sources.length > 0) {
-    lines.push('## Three agents, three styles', '');
+    lines.push('## The agents, side by side', '');
     lines.push('The same measurements, computed identically for each source so the columns compare.', '');
     lines.push(
       table(

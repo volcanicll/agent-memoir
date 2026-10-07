@@ -21,7 +21,7 @@
 
 import { matchesClassFilter, type ClassFilter } from './classify.ts';
 import type { Session } from './session.ts';
-import { redactHome } from './redact.ts';
+import { anonymizePath, redactHome } from './redact.ts';
 import { localDayKey } from './time.ts';
 import { topEntries } from './vocabulary.ts';
 
@@ -150,7 +150,7 @@ function accumulate(stats: ProjectStats, session: Session): void {
 }
 
 function toProject(root: string, cwds: number, sessions: number, stats: ProjectStats, unlocated: boolean): Project {
-  const redacted = redactHome(root);
+  const redacted = anonymizePath(redactHome(root));
   return {
     root: redacted,
     name: unlocated ? UNLOCATED_PROJECT : lastSegment(redacted),

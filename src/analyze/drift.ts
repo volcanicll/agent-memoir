@@ -31,7 +31,7 @@
 import type { Event } from '../core/event.ts';
 import { matchesClassFilter, type ClassFilter } from './classify.ts';
 import { groupSessionsByRoot, UNLOCATED_PROJECT } from './projects.ts';
-import { redactHome } from './redact.ts';
+import { anonymizePath, redactHome } from './redact.ts';
 import type { Session } from './session.ts';
 import { median } from './stat.ts';
 import { hourOfDay } from './time.ts';
@@ -148,7 +148,7 @@ function projectMovesOf(beforeEvents: readonly Event[], afterEvents: readonly Ev
   const keyOf = (event: Event): string | undefined => {
     const cwd = event.refs?.cwd;
     if (cwd === undefined) return UNLOCATED_PROJECT;
-    return redactHome(rootMap.get(cwd) ?? cwd);
+    return anonymizePath(redactHome(rootMap.get(cwd) ?? cwd));
   };
   const before = share(countBy(beforeEvents, keyOf));
   const after = share(countBy(afterEvents, keyOf));

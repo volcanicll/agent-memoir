@@ -634,7 +634,7 @@ async function checkRender(store: MemoirStore): Promise<{ bytes: number; outDir:
       }
     }
   }
-  for (const needle of ['What I keep hitting', 'Three agents, three styles', 'recurring failure patterns', 'with no cwd']) {
+  for (const needle of ['What I keep hitting', 'The agents, side by side', 'recurring failure patterns', 'with no cwd']) {
     if (!indexHtml.includes(needle)) fail(`rendered index.html is missing "${needle}"`);
   }
   // Friction's local evidence must NOT be in the page: the planted repeated

@@ -70,6 +70,20 @@ const STOP_WORDS_ZH: readonly string[] = [
 ];
 
 const STOP_SET = new Set<string>([...STOP_WORDS_EN, ...STOP_WORDS_ZH, ...STOP_CHARS_ZH]);
+
+/**
+ * Real project names, dropped from the vocabulary/drift word lists: a term
+ * count can identify an employer or a client just like a path can. Paths are
+ * anonymized at the redaction boundary; terms are dropped outright.
+ */
+export const SENSITIVE_TERMS: ReadonlySet<string> = new Set([
+  'magpie', 'magpie-plugin-cline', 'cc-skills', 'lynx-project', 'irich',
+  'deepseek-desktop', 'snapshot-evm', 'usb-bridge-go', 'fund-pooling',
+  'mss-fusion-web', 'mss-fusion-admin', 'demandsystem', 'audit-flow',
+  'workbench-web', 'ccs-design-manager', 'ccs-design-taro',
+  'material-system', 'micro-core-new', 'frontend-pc-taro',
+  'fusion-workspace', 'volcanicll', 'srdcloud', 'varisun',
+]);
 const STOP_CHARS = new Set<string>(STOP_CHARS_ZH);
 
 /** Public for tests and for anyone building a scope-aware word list later. */
@@ -106,6 +120,7 @@ export function tokenize(text: string): string[] {
     if (term.length < 2) continue;
     if (/^[0-9]+$/.test(term)) continue;
     if (username.length > 1 && term === username) continue;
+    if (SENSITIVE_TERMS.has(term)) continue;
     pushTerm(terms, term);
   }
   return terms;

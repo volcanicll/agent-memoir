@@ -388,7 +388,7 @@ function buildCompare(portrait: Portrait, view: ClassView): string {
           })
           .join('')}</ul>`;
   return `<section class="chapter" data-section="compare" data-view="${view.cls}">
-    ${chapterHead('06', 'Three agents, three styles', 'the same measures, computed identically per source', `${int(portrait.comparison.sources.length)} sources · all classes`)}
+    ${chapterHead('06', 'The agents, side by side', 'the same measures, computed identically per source', `${int(portrait.comparison.sources.length)} sources · all classes`)}
     <div class="figure-note">each row covers that source's whole history; the class mix (i = human-driven, a = automation) is shown beside the name so a row that is mostly scheduler is visible as such</div>
     ${compareTable(portrait.comparison.sources, 'all')}
     <div style="margin-top:34px;">${contrastBlock}</div>
@@ -769,7 +769,7 @@ export function renderPortraitHtml(portrait: Portrait): string {
   <header class="masthead">
     <div class="eyebrow">Agent Memoir · a portrait in local history</div>
     <h1>${escapeHtml(monthDay(portrait.span.startTs))} <span class="em">–</span> ${escapeHtml(monthDay(portrait.span.endTs))}<span class="em">, ${sameYear ? endYear : `${startYear}–${endYear}`}</span></h1>
-    <p class="lede"><strong>${int(portrait.totals.events)} events</strong> across <strong>${int(portrait.totals.sessions)} sessions</strong> in <strong>${int(portrait.span.days)} days</strong> — everything three agents on this machine recorded, reduced to rhythm, words, places, and change.</p>
+    <p class="lede"><strong>${int(portrait.totals.events)} events</strong> across <strong>${int(portrait.totals.sessions)} sessions</strong> in <strong>${int(portrait.span.days)} days</strong> — everything the agents on this machine recorded, reduced to rhythm, words, places, and change.</p>
     ${ledger(portrait)}
     ${origins(portrait)}
   </header>

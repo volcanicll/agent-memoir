@@ -23,7 +23,7 @@
 
 import { matchesClassFilter, type ClassFilter } from './classify.ts';
 import { groupSessionsByRoot, UNLOCATED_PROJECT } from './projects.ts';
-import { redactHome } from './redact.ts';
+import { anonymizePath, redactHome } from './redact.ts';
 import type { Session } from './session.ts';
 import { median } from './stat.ts';
 import { hourOfDay, localDayKey } from './time.ts';
@@ -170,7 +170,7 @@ function buildOne(
   for (const session of group) if (session.cwd === undefined) unlocated += 1;
   for (const [root, sessionsOfRoot] of byRoot) {
     projectRows.push({
-      label: redactHome(root),
+      label: anonymizePath(redactHome(root)),
       sessions: sessionsOfRoot.length,
       events: sessionsOfRoot.reduce((total, session) => total + session.eventCount, 0),
     });

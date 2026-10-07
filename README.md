@@ -9,6 +9,35 @@ CLI, and Grok CLI are normalized into one `Event` stream, analyzed into a
 sync → MemoirStore (SQLite) → analyzeAll() → Portrait → renderPortrait() → static site
 ```
 
+## What it looks like
+
+Real output from this machine (267 days, 127,048 events across seven
+adapters — projects shown as `~`-redacted slugs, no session ids, no
+conversation text).
+
+`init` discovers the local agent stores; `sync` ingests them idempotently:
+
+<p>
+  <img src="docs/shots/cli-init.png" width="420" alt="init: detected sources"/>
+  <img src="docs/shots/cli-sync.png" width="420" alt="sync: per-source insert/ignore counts"/>
+</p>
+
+The rendered portrait — masthead with the class ledger, then the rhythm
+chapter (day-by-day activity, hour-of-day and weekday profiles):
+
+<p>
+  <img src="docs/shots/hero.png" width="420" alt="portrait masthead: totals, class ledger, adapters"/>
+  <img src="docs/shots/rhythm.png" width="420" alt="rhythm chapter: daily strip, hour and weekday profiles"/>
+</p>
+
+`compare` puts the sources side by side on identical measures — the same
+table the portrait renders in its "agents, side by side" chapter:
+
+<p>
+  <img src="docs/shots/cli-compare.png" width="420" alt="compare CLI: per-source table"/>
+  <img src="docs/shots/compare.png" width="420" alt="compare chapter: agents side by side"/>
+</p>
+
 ## Adapters
 
 Builtin adapters live under `src/adapters/<id>/` (one `index.ts` for discovery

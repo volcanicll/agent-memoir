@@ -20,6 +20,65 @@ export const HOME_REDACTION = '/Users/volcanic';
 /** What the home prefix is replaced with. */
 export const HOME_LABEL = '~';
 
+/**
+ * Project-name aliases for shareable artifacts. Real directory names can
+ * identify employers and clients even when the home prefix is redacted, so
+ * every display path that survives redaction is mapped through this table
+ * before it reaches the renderer. Deterministic by design: the same input
+ * always yields the same alias, so a session's history stays readable.
+ */
+const PROJECT_ALIASES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^codespace\//, 'projects/a/'],
+  [/^workspace\/fusion-workspace\//, 'projects/b/'],
+  [/^workspace\//, 'projects/c/'],
+];
+
+const SEGMENT_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['volcanicll', 'project-sierra'],
+  ['workbench', 'project-tango'],
+  ['frontend-PC-taro', 'projects-d'],
+  ['fusion-workspace', 'projects-e'],
+  ['magpie-plugin-cline', 'project-delta'],
+  ['cc-skills', 'project-alpha'],
+  ['lynx-project', 'project-bravo'],
+  ['magpie', 'project-charlie'],
+  ['magpie-plugin-cline', 'project-delta'],
+  ['iRich', 'project-echo'],
+  ['deepseek-desktop', 'project-foxtrot'],
+  ['snapshot-evm', 'project-golf'],
+  ['usb-bridge-go', 'project-hotel'],
+  ['fund-pooling', 'project-india'],
+  ['mss-fusion-web', 'project-juliett'],
+  ['mss-fusion-admin', 'project-kilo'],
+  ['demandSystem', 'project-lima'],
+  ['audit-flow', 'project-mike'],
+  ['workbench-web', 'project-november'],
+  ['ccs-design-manager', 'project-oscar'],
+  ['ccs-design-taro', 'project-papa'],
+  ['material-system', 'project-quebec'],
+  ['micro-core-new', 'project-romeo'],
+]);
+
+/** Display-name substitution for a redacted path's segments. */
+function aliasSegments(value: string): string {
+  return value
+    .split('/')
+    .map((segment) => SEGMENT_ALIASES.get(segment) ?? segment)
+    .join('/');
+}
+
+/** Map a redacted path onto its anonymous form (identity when unmapped). */
+export function anonymizePath(value: string): string {
+  let out = value;
+  for (const [pattern, replacement] of PROJECT_ALIASES) {
+    if (pattern.test(out)) {
+      out = out.replace(pattern, replacement);
+      break;
+    }
+  }
+  return aliasSegments(out);
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
